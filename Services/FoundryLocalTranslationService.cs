@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 using local_translate_provider.Models;
 using Microsoft.AI.Foundry.Local;
@@ -12,8 +13,8 @@ public sealed class FoundryLocalTranslationService : ITranslationService
 {
     private readonly AppSettings _settings;
     private readonly ILogger? _logger;
-    private Microsoft.AI.Foundry.Local.Model? _loadedModel;
-    private Betalgo.Ranul.OpenAI.Interfaces.IChatCompletionService? _chatClient;
+    private Microsoft.AI.Foundry.Local.IModel? _loadedModel;
+    private Microsoft.AI.Foundry.Local.OpenAIChatClient? _chatClient;
     private string? _loadedAlias;
     private FoundryExecutionStrategy _loadedStrategy;
     private FoundryDeviceType _loadedDevice;
@@ -40,12 +41,10 @@ public sealed class FoundryLocalTranslationService : ITranslationService
             throw new InvalidOperationException("Foundry Local model not loaded. Check model alias and execution strategy.");
 
         var messages = new List<ChatMessage> { new() { Role = "user", Content = prompt } };
-        var modelId = model.Id ?? _settings.FoundryModelAlias;
-        var request = new ChatCompletionCreateRequest { Messages = messages, Model = modelId };
-        var result = await chatClient.CreateCompletion(request, modelId, cancellationToken);
-        if (result.Successful && result.Choices?.Count > 0)
+        var result = await chatClient.CompleteChatAsync(messages, cancellationToken);
+        if (result.Choices?.Count > 0)
             return (result.Choices[0].Message?.Content ?? "").Trim();
-        throw new InvalidOperationException(result.Error?.Message ?? "Translation failed");
+        throw new InvalidOperationException("Translation returned no choices.");
     }
 
     public async Task<TranslationServiceStatus> GetStatusAsync(CancellationToken cancellationToken = default)
@@ -72,7 +71,7 @@ public sealed class FoundryLocalTranslationService : ITranslationService
         }
     }
 
-    private async Task<(Microsoft.AI.Foundry.Local.Model?, Betalgo.Ranul.OpenAI.Interfaces.IChatCompletionService?)> EnsureModelLoadedAsync(CancellationToken ct)
+    private async Task<(Microsoft.AI.Foundry.Local.IModel?, Microsoft.AI.Foundry.Local.OpenAIChatClient?)> EnsureModelLoadedAsync(CancellationToken ct)
     {
         var needsReload = _loadedModel == null
             || _loadedAlias != _settings.FoundryModelAlias
@@ -104,17 +103,17 @@ public sealed class FoundryLocalTranslationService : ITranslationService
             var mgr = FoundryLocalManager.Instance;
             var catalog = await mgr.GetCatalogAsync().ConfigureAwait(false);
 
-            var modelIdOrAlias = ResolveModelIdOrAlias(_settings);
-            var model = await catalog.GetModelAsync(modelIdOrAlias).ConfigureAwait(false)
-                ?? throw new InvalidOperationException($"Model '{modelIdOrAlias}' not found.");
+            var modelIdOrAlias = await ResolveModelIdOrAliasAsync(catalog, _settings, ct).ConfigureAwait(false);
+            Microsoft.AI.Foundry.Local.IModel? model = await catalog.GetModelVariantAsync(modelIdOrAlias, ct).ConfigureAwait(false)
+                ?? (Microsoft.AI.Foundry.Local.IModel?)await catalog.GetModelAsync(modelIdOrAlias, ct).ConfigureAwait(false);
+            if (model == null)
+                throw new InvalidOperationException($"Model '{modelIdOrAlias}' not found.");
 
             await model.DownloadAsync(_ => { }).ConfigureAwait(false);
             await model.LoadAsync().ConfigureAwait(false);
 
-            var chatClientRaw = await model.GetChatClientAsync().ConfigureAwait(false);
-            var chatClient = chatClientRaw as Betalgo.Ranul.OpenAI.Interfaces.IChatCompletionService;
-            if (chatClient == null)
-                throw new InvalidOperationException("Foundry Local chat client does not implement IChatCompletionService.");
+            var chatClient = await model.GetChatClientAsync(ct).ConfigureAwait(false) as Microsoft.AI.Foundry.Local.OpenAIChatClient
+                ?? throw new InvalidOperationException("Foundry Local chat client is not OpenAIChatClient.");
             _loadedModel = model;
             _chatClient = chatClient;
             _loadedAlias = _settings.FoundryModelAlias;
@@ -129,46 +128,51 @@ public sealed class FoundryLocalTranslationService : ITranslationService
         }
     }
 
-    private static string ResolveModelIdOrAlias(AppSettings settings)
+    /// <summary>按策略与设备类型选择模型变体。</summary>
+    private static async Task<string> ResolveModelIdOrAliasAsync(
+        Microsoft.AI.Foundry.Local.ICatalog catalog,
+        AppSettings settings,
+        CancellationToken ct)
     {
         if (settings.ExecutionStrategy == FoundryExecutionStrategy.HighPerformance)
             return settings.FoundryModelAlias;
 
-        if (settings.ExecutionStrategy == FoundryExecutionStrategy.PowerSaving)
-        {
-            var cpuSuffix = "-generic-cpu";
-            var alias = settings.FoundryModelAlias;
-            if (alias.EndsWith(cpuSuffix, StringComparison.OrdinalIgnoreCase))
-                return alias;
-            return alias + cpuSuffix;
-        }
+        var targetDevice = settings.ExecutionStrategy == FoundryExecutionStrategy.PowerSaving
+            ? DeviceType.CPU
+            : MapToDeviceType(settings.ManualDeviceType);
 
-        if (settings.ExecutionStrategy == FoundryExecutionStrategy.Manual)
+        var models = await catalog.ListModelsAsync(ct).ConfigureAwait(false);
+        var alias = settings.FoundryModelAlias;
+
+        foreach (var m in models)
         {
-            var suffix = settings.ManualDeviceType switch
+            if (m.Variants == null) continue;
+            foreach (var v in m.Variants)
             {
-                FoundryDeviceType.CPU => "-generic-cpu",
-                FoundryDeviceType.GPU => "-generic-cuda",
-                FoundryDeviceType.NPU => "-generic-qnn",
-                FoundryDeviceType.WebGPU => "-generic-webgpu",
-                _ => "-generic-cpu"
-            };
-            var alias = settings.FoundryModelAlias;
-            if (alias.EndsWith("-generic-cpu", StringComparison.OrdinalIgnoreCase) ||
-                alias.EndsWith("-generic-cuda", StringComparison.OrdinalIgnoreCase) ||
-                alias.EndsWith("-generic-qnn", StringComparison.OrdinalIgnoreCase) ||
-                alias.EndsWith("-generic-webgpu", StringComparison.OrdinalIgnoreCase))
-            {
-                var idx = alias.LastIndexOf('-');
-                if (idx > 0) alias = alias[..idx];
+                var vAlias = v.Alias ?? m.Alias;
+                if (!string.Equals(vAlias, alias, StringComparison.OrdinalIgnoreCase))
+                    continue;
+                var vDevice = v.Info?.Runtime?.DeviceType ?? DeviceType.Invalid;
+                if (vDevice == targetDevice)
+                {
+                    var id = v.Id ?? "";
+                    if (id.Length > 0) return id;
+                }
             }
-            return alias + suffix;
         }
 
         return settings.FoundryModelAlias;
     }
 
-    /// <summary>CreateAsync 仅能调用一次，重复调用会抛 "already been created"，此处捕获后复用 Instance。</summary>
+    private static DeviceType MapToDeviceType(FoundryDeviceType dt) => dt switch
+    {
+        FoundryDeviceType.CPU => DeviceType.CPU,
+        FoundryDeviceType.GPU => DeviceType.GPU,
+        FoundryDeviceType.NPU => DeviceType.NPU,
+        _ => DeviceType.CPU
+    };
+
+    /// <summary>重复创建时复用 Instance。</summary>
     private static async Task EnsureManagerCreatedAsync(CancellationToken ct)
     {
         try
@@ -176,13 +180,16 @@ public sealed class FoundryLocalTranslationService : ITranslationService
             await FoundryLocalManager.CreateAsync(new Configuration
             {
                 AppName = "local-translate-provider",
-                LogLevel = Microsoft.AI.Foundry.Local.LogLevel.Information
+                LogLevel = Microsoft.AI.Foundry.Local.LogLevel.Information,
+                ModelCacheDir = Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+                    ".foundry", "cache", "models")
             }, Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance).ConfigureAwait(false);
         }
         catch (Exception ex) when (ex.Message.Contains("already been created", StringComparison.OrdinalIgnoreCase)) { }
     }
 
-    /// <summary>设置变更时调用，强制下次翻译时重新加载模型。</summary>
+    /// <summary>设置变更时强制重新加载。</summary>
     public void InvalidateLoadedModel()
     {
         _loadedModel = null;
