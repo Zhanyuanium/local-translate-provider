@@ -17,6 +17,9 @@ public sealed class AppSettings
     /// <summary>Optional API key for access control.</summary>
     public string? ApiKey { get; set; }
 
+    /// <summary>Run at Windows startup.</summary>
+    public bool RunAtStartup { get; set; }
+
     /// <summary>Minimize to tray on startup.</summary>
     public bool MinimizeToTrayOnStartup { get; set; } = true;
 

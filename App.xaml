@@ -10,7 +10,11 @@
                 <XamlControlsResources xmlns="using:Microsoft.UI.Xaml.Controls" />
                 <!-- Other merged dictionaries here -->
             </ResourceDictionary.MergedDictionaries>
-            <!-- Other app resources here -->
+            <SolidColorBrush x:Key="NavigationViewContentBackground" Color="Transparent"/>
+            <Thickness x:Key="NavigationViewContentGridBorderThickness">0,0,0,0</Thickness>
+            <Thickness x:Key="NavigationViewMinimalContentGridBorderThickness">0,0,0,0</Thickness>
+            <Thickness x:Key="TopNavigationViewContentGridBorderThickness">0,0,0,0</Thickness>
+            <Thickness x:Key="NavigationViewBorderThickness">0</Thickness>
         </ResourceDictionary>
     </Application.Resources>
 </Application>

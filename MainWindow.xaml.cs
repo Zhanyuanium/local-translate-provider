@@ -3,6 +3,7 @@ using local_translate_provider.Services;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Media;
 using Windows.Graphics;
 
 namespace local_translate_provider;
@@ -12,10 +13,13 @@ public sealed partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
-        AppWindow.Resize(new SizeInt32(420, 520));
+        SystemBackdrop = new MicaBackdrop();
+        AppWindow.Resize(new SizeInt32(1700, 1200));
         LoadSettings();
         BackendCombo.SelectionChanged += (_, _) => UpdateBackendVisibility();
         StrategyCombo.SelectionChanged += (_, _) => UpdateStrategyVisibility();
+        NavView.SelectedItem = NavView.MenuItems[0];
+        ShowPanel("General");
         AppWindow.Closing += (_, args) =>
         {
             args.Cancel = true;
@@ -23,14 +27,62 @@ public sealed partial class MainWindow : Window
         };
     }
 
+    private void NavView_SelectionChanged(NavigationView sender, NavigationViewSelectionChangedEventArgs args)
+    {
+        if (args.SelectedItem is NavigationViewItem item && item.Tag is string tag)
+        {
+            SaveCurrentPanelBeforeLeave();
+            ShowPanel(tag);
+        }
+    }
+
+    private async void SaveCurrentPanelBeforeLeave()
+    {
+        if (GeneralPanel.Visibility == Visibility.Visible)
+            await SaveGeneralAsync();
+        else if (ServicePanel.Visibility == Visibility.Visible)
+            await SaveServiceAsync();
+    }
+
+    private async System.Threading.Tasks.Task SaveGeneralAsync()
+    {
+        var s = App.Settings;
+        s.RunAtStartup = RunAtStartupSwitch.IsOn;
+        s.MinimizeToTrayOnStartup = MinimizeTraySwitch.IsOn;
+        await SettingsService.SaveAsync(s);
+    }
+
+    private async System.Threading.Tasks.Task SaveServiceAsync()
+    {
+        if (!int.TryParse(PortBox.Text, out var port) || port < 1 || port > 65535)
+            return;
+        var s = App.Settings;
+        s.Port = port;
+        s.EnableDeepLEndpoint = DeepLCheck.IsChecked == true;
+        s.EnableGoogleEndpoint = GoogleCheck.IsChecked == true;
+        s.ApiKey = string.IsNullOrWhiteSpace(ApiKeyBox.Text) ? null : ApiKeyBox.Text.Trim();
+        await SettingsService.SaveAsync(s);
+        App.HttpServer.Restart();
+    }
+
+    private void ShowPanel(string tag)
+    {
+        GeneralPanel.Visibility = tag == "General" ? Visibility.Visible : Visibility.Collapsed;
+        ModelPanel.Visibility = tag == "Model" ? Visibility.Visible : Visibility.Collapsed;
+        ServicePanel.Visibility = tag == "Service" ? Visibility.Visible : Visibility.Collapsed;
+        AboutPanel.Visibility = tag == "About" ? Visibility.Visible : Visibility.Collapsed;
+        SaveButton.Visibility = tag == "Model" ? Visibility.Visible : Visibility.Collapsed;
+    }
+
     private void LoadSettings()
     {
         var s = App.Settings;
+        RunAtStartupSwitch.IsOn = s.RunAtStartup;
+        MinimizeTraySwitch.IsOn = s.MinimizeToTrayOnStartup;
         PortBox.Text = s.Port.ToString();
         DeepLCheck.IsChecked = s.EnableDeepLEndpoint;
         GoogleCheck.IsChecked = s.EnableGoogleEndpoint;
         ApiKeyBox.Text = s.ApiKey ?? "";
-        MinimizeTrayCheck.IsChecked = s.MinimizeToTrayOnStartup;
         BackendCombo.SelectedIndex = s.TranslationBackend == TranslationBackend.PhiSilica ? 0 : 1;
         ModelAliasBox.Text = s.FoundryModelAlias;
         StrategyCombo.SelectedIndex = s.ExecutionStrategy switch
@@ -60,7 +112,7 @@ public sealed partial class MainWindow : Window
     private void UpdateStrategyVisibility()
     {
         var isManual = StrategyCombo.SelectedIndex == 2;
-        ManualDevicePanel.Visibility = isManual ? Visibility.Visible : Visibility.Collapsed;
+        ManualDeviceBorder.Visibility = isManual ? Visibility.Visible : Visibility.Collapsed;
     }
 
     private async System.Threading.Tasks.Task RefreshStatusAsync()
@@ -78,6 +130,35 @@ public sealed partial class MainWindow : Window
         }
     }
 
+    private async void ResetSettings_Click(object sender, RoutedEventArgs e)
+    {
+        var dialog = new ContentDialog
+        {
+            Title = "重置设置",
+            Content = "确定要将所有设置恢复为默认值吗？",
+            PrimaryButtonText = "确定",
+            CloseButtonText = "取消",
+            XamlRoot = NavView.XamlRoot
+        };
+        if (await dialog.ShowAsync() == ContentDialogResult.Primary)
+        {
+            App.Settings.Port = 52860;
+            App.Settings.EnableDeepLEndpoint = true;
+            App.Settings.EnableGoogleEndpoint = true;
+            App.Settings.ApiKey = null;
+            App.Settings.RunAtStartup = false;
+            App.Settings.MinimizeToTrayOnStartup = true;
+            App.Settings.TranslationBackend = TranslationBackend.FoundryLocal;
+            App.Settings.FoundryModelAlias = "phi-3.5-mini";
+            App.Settings.ExecutionStrategy = FoundryExecutionStrategy.HighPerformance;
+            App.Settings.ManualDeviceType = FoundryDeviceType.CPU;
+            await SettingsService.SaveAsync(App.Settings);
+            LoadSettings();
+            App.TranslationService.UpdateSettings(App.Settings);
+            App.HttpServer.Restart();
+        }
+    }
+
     private async void SaveButton_Click(object sender, RoutedEventArgs e)
     {
         if (!int.TryParse(PortBox.Text, out var port) || port < 1 || port > 65535)
@@ -87,11 +168,12 @@ public sealed partial class MainWindow : Window
         }
 
         var s = App.Settings;
+        s.RunAtStartup = RunAtStartupSwitch.IsOn;
+        s.MinimizeToTrayOnStartup = MinimizeTraySwitch.IsOn;
         s.Port = port;
         s.EnableDeepLEndpoint = DeepLCheck.IsChecked == true;
         s.EnableGoogleEndpoint = GoogleCheck.IsChecked == true;
         s.ApiKey = string.IsNullOrWhiteSpace(ApiKeyBox.Text) ? null : ApiKeyBox.Text.Trim();
-        s.MinimizeToTrayOnStartup = MinimizeTrayCheck.IsChecked == true;
         s.TranslationBackend = BackendCombo.SelectedIndex == 0 ? TranslationBackend.PhiSilica : TranslationBackend.FoundryLocal;
         s.FoundryModelAlias = ModelAliasBox.Text.Trim();
         s.ExecutionStrategy = StrategyCombo.SelectedIndex switch
