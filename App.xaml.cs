@@ -29,22 +29,25 @@ public partial class App : Application
         _httpServer = new HttpTranslationServer(_settings, _translationService);
         _httpServer.Start();
 
-        _window = new MainWindow();
         _trayIcon = new TrayIconManager(ShowSettings, DoExit);
 
         if (_settings.MinimizeToTrayOnStartup)
         {
-            _window.AppWindow.Hide();
+            // 延迟创建 MainWindow，首次点击托盘或 ShowSettings 时再创建
         }
         else
         {
+            _window = new MainWindow();
             _window.Activate();
         }
     }
 
     private void ShowSettings()
     {
-        if (_window == null) return;
+        if (_window == null)
+        {
+            _window = new MainWindow();
+        }
         _window.AppWindow.Show();
         _window.Activate();
     }
