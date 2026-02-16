@@ -329,7 +329,6 @@ Options:
                         "CPU" => FoundryDeviceType.CPU,
                         "GPU" => FoundryDeviceType.GPU,
                         "NPU" => FoundryDeviceType.NPU,
-                        "WEBGPU" => FoundryDeviceType.WebGPU,
                         _ => settings.ManualDeviceType
                     };
                     modified = true;

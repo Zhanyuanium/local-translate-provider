@@ -89,7 +89,7 @@ public sealed partial class SettingsPage : Page
             FoundryDeviceType.CPU => 0,
             FoundryDeviceType.GPU => 1,
             FoundryDeviceType.NPU => 2,
-            _ => 3
+            _ => 0
         };
         UpdateBackendVisibility();
         UpdateStrategyVisibility();
@@ -153,7 +153,7 @@ public sealed partial class SettingsPage : Page
             App.Settings.RunAtStartup = false;
             App.Settings.MinimizeToTrayOnStartup = true;
             App.Settings.TranslationBackend = TranslationBackend.FoundryLocal;
-            App.Settings.FoundryModelAlias = "phi-3.5-mini";
+            App.Settings.FoundryModelAlias = "phi-4-mini";
             App.Settings.ExecutionStrategy = FoundryExecutionStrategy.HighPerformance;
             App.Settings.ManualDeviceType = FoundryDeviceType.CPU;
             App.Settings.DebugLogEnabled = false;
@@ -193,7 +193,7 @@ public sealed partial class SettingsPage : Page
             0 => FoundryDeviceType.CPU,
             1 => FoundryDeviceType.GPU,
             2 => FoundryDeviceType.NPU,
-            _ => FoundryDeviceType.WebGPU
+            _ => FoundryDeviceType.CPU
         };
 
         await SettingsService.SaveAsync(s);

@@ -41,7 +41,7 @@
                     </toolkit:SettingsCard>
                     <StackPanel x:Name="FoundryPanel" Visibility="Collapsed" Spacing="8">
                         <toolkit:SettingsCard x:Uid="FoundryModelCard" Header="Foundry Local model" IsClickEnabled="False" IsActionIconVisible="False" HorizontalAlignment="Stretch">
-                            <TextBox x:Name="ModelAliasBox" x:Uid="ModelAliasBox" PlaceholderText="phi-3.5-mini" MinWidth="180" VerticalAlignment="Center"/>
+                            <TextBox x:Name="ModelAliasBox" x:Uid="ModelAliasBox" PlaceholderText="phi-4-mini" MinWidth="180" VerticalAlignment="Center"/>
                         </toolkit:SettingsCard>
                         <toolkit:SettingsCard x:Uid="StrategyCard" Header="Execution strategy" IsClickEnabled="False" IsActionIconVisible="False" HorizontalAlignment="Stretch">
                             <ComboBox x:Name="StrategyCombo" MinWidth="180" VerticalAlignment="Center">
@@ -55,7 +55,6 @@
                                 <ComboBoxItem Content="CPU" Tag="CPU"/>
                                 <ComboBoxItem Content="GPU" Tag="GPU"/>
                                 <ComboBoxItem Content="NPU" Tag="NPU"/>
-                                <ComboBoxItem Content="WebGPU" Tag="WebGPU"/>
                             </ComboBox>
                         </toolkit:SettingsCard>
                     </StackPanel>

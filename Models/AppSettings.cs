@@ -26,8 +26,8 @@ public sealed class AppSettings
     /// <summary>Translation backend: PhiSilica or FoundryLocal.</summary>
     public TranslationBackend TranslationBackend { get; set; } = TranslationBackend.FoundryLocal;
 
-    /// <summary>Foundry Local model alias (e.g. phi-3.5-mini, qwen2.5-0.5b).</summary>
-    public string FoundryModelAlias { get; set; } = "phi-3.5-mini";
+    /// <summary>Foundry Local model alias (e.g. phi-4-mini, qwen2.5-0.5b).</summary>
+    public string FoundryModelAlias { get; set; } = "phi-4-mini";
 
     /// <summary>Foundry Local execution strategy.</summary>
     public FoundryExecutionStrategy ExecutionStrategy { get; set; } = FoundryExecutionStrategy.HighPerformance;
@@ -61,6 +61,5 @@ public enum FoundryDeviceType
 {
     CPU,
     GPU,
-    NPU,
-    WebGPU
+    NPU
 }
