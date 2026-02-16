@@ -34,6 +34,9 @@ public sealed class AppSettings
 
     /// <summary>Manually specified device when ExecutionStrategy is Manual.</summary>
     public FoundryDeviceType ManualDeviceType { get; set; } = FoundryDeviceType.CPU;
+
+    /// <summary>Enable IPC debug log (GUI About page only; CLI uses --debug-log).</summary>
+    public bool DebugLogEnabled { get; set; }
 }
 
 public enum TranslationBackend

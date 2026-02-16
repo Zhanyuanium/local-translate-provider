@@ -11,7 +11,7 @@ namespace local_translate_provider.Services;
 /// <summary>Foundry Local 翻译服务，支持多模型与运行策略。</summary>
 public sealed class FoundryLocalTranslationService : ITranslationService
 {
-    private readonly AppSettings _settings;
+    private AppSettings _settings;
     private readonly ILogger? _logger;
     private Microsoft.AI.Foundry.Local.IModel? _loadedModel;
     private Microsoft.AI.Foundry.Local.OpenAIChatClient? _chatClient;
@@ -24,6 +24,12 @@ public sealed class FoundryLocalTranslationService : ITranslationService
     {
         _settings = settings;
         _logger = logger;
+    }
+
+    internal void UpdateSettings(AppSettings settings)
+    {
+        _settings = settings;
+        InvalidateLoadedModel();
     }
 
     public async Task<string> TranslateAsync(

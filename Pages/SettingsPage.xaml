@@ -85,6 +85,9 @@
                 <!-- 关于 -->
                 <StackPanel x:Name="AboutPanel" Visibility="Collapsed" Spacing="12" HorizontalAlignment="Stretch">
                     <TextBlock x:Uid="AppName" Text="Local Translate Provider" FontSize="18" FontWeight="SemiBold"/>
+                    <toolkit:SettingsCard x:Uid="DebugLogCard" Header="Enable IPC debug log" IsClickEnabled="False" IsActionIconVisible="False" HorizontalAlignment="Stretch">
+                        <ToggleSwitch x:Name="DebugLogSwitch" VerticalAlignment="Center" Toggled="DebugLogSwitch_Toggled"/>
+                    </toolkit:SettingsCard>
                     <TextBlock x:Uid="AboutPlaceholder" Text="(To be filled)" Opacity="0.6"/>
                 </StackPanel>
             </Grid>

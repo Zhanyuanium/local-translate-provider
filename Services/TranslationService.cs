@@ -7,7 +7,7 @@ namespace local_translate_provider.Services;
 /// </summary>
 public sealed class TranslationService : ITranslationService
 {
-    private readonly AppSettings _settings;
+    private AppSettings _settings;
     private readonly PhiSilicaTranslationService _phiSilica;
     private readonly FoundryLocalTranslationService _foundryLocal;
 
@@ -20,7 +20,8 @@ public sealed class TranslationService : ITranslationService
 
     public void UpdateSettings(AppSettings settings)
     {
-        _foundryLocal.InvalidateLoadedModel();
+        _settings = settings;
+        _foundryLocal.UpdateSettings(settings);
     }
 
     private ITranslationService GetBackend() =>

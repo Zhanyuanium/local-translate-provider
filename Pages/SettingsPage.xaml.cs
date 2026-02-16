@@ -1,3 +1,4 @@
+using local_translate_provider;
 using local_translate_provider.Models;
 using local_translate_provider.Services;
 using Microsoft.UI.Xaml;
@@ -92,7 +93,16 @@ public sealed partial class SettingsPage : Page
         };
         UpdateBackendVisibility();
         UpdateStrategyVisibility();
+        DebugLogSwitch.IsOn = s.DebugLogEnabled;
         _ = RefreshStatusAsync();
+    }
+
+    private async void DebugLogSwitch_Toggled(object sender, RoutedEventArgs e)
+    {
+        var s = App.Settings;
+        s.DebugLogEnabled = DebugLogSwitch.IsOn;
+        DebugLog.IsEnabled = s.DebugLogEnabled;
+        await SettingsService.SaveAsync(s);
     }
 
     private void UpdateBackendVisibility()
@@ -146,6 +156,8 @@ public sealed partial class SettingsPage : Page
             App.Settings.FoundryModelAlias = "phi-3.5-mini";
             App.Settings.ExecutionStrategy = FoundryExecutionStrategy.HighPerformance;
             App.Settings.ManualDeviceType = FoundryDeviceType.CPU;
+            App.Settings.DebugLogEnabled = false;
+            DebugLog.IsEnabled = false;
             await SettingsService.SaveAsync(App.Settings);
             LoadSettings();
             App.TranslationService.UpdateSettings(App.Settings);

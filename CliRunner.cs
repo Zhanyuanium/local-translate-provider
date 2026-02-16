@@ -1,4 +1,6 @@
+using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text;
 using Microsoft.Win32.SafeHandles;
@@ -64,6 +66,10 @@ public static class CliRunner
 
     public static int Run(string[] args)
     {
+        if (Array.Exists(args, a => a.Equals("--debug-log", StringComparison.OrdinalIgnoreCase)))
+            DebugLog.IsEnabled = true;
+        args = args.Where(a => !a.Equals("--debug-log", StringComparison.OrdinalIgnoreCase)).ToArray();
+
         _useFileStorage = !TryInitWindowsAppSdk();
         if (_useFileStorage)
         {
@@ -71,7 +77,10 @@ public static class CliRunner
         }
 
         if (args.Length == 0)
-            return RunServe();
+        {
+            PrintHelp();
+            return 0;
+        }
 
         var first = args[0].ToLowerInvariant();
         if (first is "--help" or "-h" or "help")
@@ -79,12 +88,16 @@ public static class CliRunner
             PrintHelp();
             return 0;
         }
-        if (first == "serve")
-            return RunServe();
-        if (first == "config")
-            return RunConfig(args.AsSpan(1));
+        if (first == "gui")
+            return RunGui();
+        if (first == "quit")
+            return RunQuit();
         if (first == "status")
             return RunStatus();
+        if (first == "about")
+            return RunAbout();
+        if (first == "config")
+            return RunConfig(args.AsSpan(1));
 
         Console.Error.WriteLine($"Error: Unknown command '{first}'.");
         Console.Error.WriteLine("Use --help for usage.");
@@ -108,16 +121,25 @@ public static class CliRunner
         Console.WriteLine(@"local-translate-provider - Local translation provider (DeepL/Google format)
 
 Usage:
-  local-translate-provider              Start GUI
-  local-translate-provider serve       Run HTTP server in background
-  local-translate-provider config      Modify settings
-  local-translate-provider status      Show service status
+  local-translate-provider              Start tray (background), exit immediately
+  local-translate-provider gui         Open main window
+  local-translate-provider quit        Exit the running app
+  local-translate-provider status      Show translation backend status
+  local-translate-provider about       Show app info
+  local-translate-provider config      Modify settings (see config --help)
   local-translate-provider --help      Show this help
 
 Commands:
-  serve              Load settings, start HTTP server, wait for Ctrl+C
-  config --port N    Set HTTP port (1-65535) and save
-  status             Print translation backend status");
+  gui                 Open main window (or start app and show)
+  quit                Exit the running app
+  status              Print backend status (from running app or standalone)
+  about               Print app name and version
+  config general      General settings (--run-at-startup, --minimize-tray)
+  config model        Model settings (--backend, --model, --strategy, --device)
+  config service      Service settings (--port, --deeple, --google, --api-key)
+
+Options:
+  --debug-log         Enable IPC debug log (use with status, gui, etc.)");
     }
 
     private static Task<AppSettings> LoadSettingsAsync() =>
@@ -126,81 +148,35 @@ Commands:
     private static Task SaveSettingsAsync(AppSettings s) =>
         _useFileStorage ? FileSettingsStorage.SaveAsync(s) : SettingsService.SaveAsync(s);
 
-    private static int RunServe()
+    private static int RunGui()
     {
-        try
+        var (ok, _) = IpcClient.Send("gui");
+        if (ok)
         {
-            var settings = LoadSettingsAsync().GetAwaiter().GetResult();
-            var translationService = new TranslationService(settings);
-            var server = new HttpTranslationServer(settings, translationService);
-            server.Start();
-
-            Console.WriteLine($"Server running on http://localhost:{settings.Port}/");
-            Console.WriteLine("Press Ctrl+C to stop.");
-
-            var cts = new CancellationTokenSource();
-            Console.CancelKeyPress += (_, e) =>
-            {
-                e.Cancel = true;
-                cts.Cancel();
-            };
-
-            try
-            {
-                Task.Delay(Timeout.Infinite, cts.Token).GetAwaiter().GetResult();
-            }
-            catch (OperationCanceledException) { }
-
-            server.Stop();
             return 0;
         }
-        catch (Exception ex)
-        {
-            Console.Error.WriteLine($"Error: {ex.Message}");
-            return 1;
-        }
+        SpawnTrayWithWindow();
+        return 0;
     }
 
-    private static int RunConfig(ReadOnlySpan<string> args)
+    private static int RunQuit()
     {
-        try
-        {
-            var settings = LoadSettingsAsync().GetAwaiter().GetResult();
-            var modified = false;
-
-            for (var i = 0; i < args.Length; i++)
-            {
-                if ((args[i] is "--port" or "-p") && i + 1 < args.Length)
-                {
-                    if (!int.TryParse(args[i + 1], out var port) || port < 1 || port > 65535)
-                    {
-                        Console.Error.WriteLine("Error: Invalid port. Use 1-65535.");
-                        return 1;
-                    }
-                    settings.Port = port;
-                    modified = true;
-                    i++;
-                }
-            }
-
-            if (!modified)
-            {
-                Console.Error.WriteLine("Error: No changes specified. Use config --port N");
-                return 1;
-            }
-
-            SaveSettingsAsync(settings).GetAwaiter().GetResult();
-            Console.WriteLine($"Saved. Port set to {settings.Port}.");
-            return 0;
-        }
-        catch (Exception ex)
-        {
-            Console.Error.WriteLine($"Error: {ex.Message}");
-            return 1;
-        }
+        var (ok, _) = IpcClient.Send("quit");
+        return 0;
     }
 
     private static int RunStatus()
+    {
+        var (ok, response) = IpcClient.Send("status");
+        if (ok && !string.IsNullOrEmpty(response))
+        {
+            Console.WriteLine(response);
+            return 0;
+        }
+        return RunStatusStandalone();
+    }
+
+    private static int RunStatusStandalone()
     {
         try
         {
@@ -220,5 +196,229 @@ Commands:
             Console.Error.WriteLine($"Error: {ex.Message}");
             return 1;
         }
+    }
+
+    private static int RunAbout()
+    {
+        Console.WriteLine("Local Translate Provider");
+        Console.WriteLine("Local translation provider with DeepL/Google format endpoints.");
+        return 0;
+    }
+
+    private static void SpawnTrayWithWindow()
+    {
+        var exe = Environment.ProcessPath ?? Process.GetCurrentProcess().MainModule?.FileName ?? "local-translate-provider.exe";
+        var startInfo = new ProcessStartInfo
+        {
+            FileName = exe,
+            Arguments = "--tray --show-window",
+            UseShellExecute = false,
+            CreateNoWindow = true
+        };
+        try
+        {
+            Process.Start(startInfo);
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"Error: {ex.Message}");
+        }
+    }
+
+    private static int RunConfig(ReadOnlySpan<string> args)
+    {
+        if (args.Length == 0)
+        {
+            Console.Error.WriteLine("Error: Use config general | config model | config service");
+            return 1;
+        }
+
+        var sub = args[0].ToLowerInvariant();
+        var rest = args.Length > 1 ? args.Slice(1) : ReadOnlySpan<string>.Empty;
+
+        if (sub == "general")
+            return RunConfigGeneral(rest);
+        if (sub == "model")
+            return RunConfigModel(rest);
+        if (sub == "service")
+            return RunConfigService(rest);
+
+        Console.Error.WriteLine($"Error: Unknown config section '{sub}'.");
+        return 1;
+    }
+
+    private static int RunConfigGeneral(ReadOnlySpan<string> args)
+    {
+        try
+        {
+            var settings = LoadSettingsAsync().GetAwaiter().GetResult();
+            var modified = false;
+
+            for (var i = 0; i < args.Length; i++)
+            {
+                if ((args[i] is "--run-at-startup") && i + 1 < args.Length)
+                {
+                    settings.RunAtStartup = ParseBool(args[i + 1]);
+                    modified = true;
+                    i++;
+                }
+                else if ((args[i] is "--minimize-tray") && i + 1 < args.Length)
+                {
+                    settings.MinimizeToTrayOnStartup = ParseBool(args[i + 1]);
+                    modified = true;
+                    i++;
+                }
+            }
+
+            if (!modified)
+            {
+                Console.Error.WriteLine("Error: No changes. Use --run-at-startup true|false, --minimize-tray true|false");
+                return 1;
+            }
+
+            SaveSettingsAsync(settings).GetAwaiter().GetResult();
+            IpcClient.Send("reload");
+            Console.WriteLine("Saved.");
+            return 0;
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"Error: {ex.Message}");
+            return 1;
+        }
+    }
+
+    private static int RunConfigModel(ReadOnlySpan<string> args)
+    {
+        try
+        {
+            var settings = LoadSettingsAsync().GetAwaiter().GetResult();
+            var modified = false;
+
+            for (var i = 0; i < args.Length; i++)
+            {
+                if ((args[i] is "--backend") && i + 1 < args.Length)
+                {
+                    settings.TranslationBackend = args[i + 1].Equals("PhiSilica", StringComparison.OrdinalIgnoreCase)
+                        ? TranslationBackend.PhiSilica : TranslationBackend.FoundryLocal;
+                    modified = true;
+                    i++;
+                }
+                else if ((args[i] is "--model") && i + 1 < args.Length)
+                {
+                    settings.FoundryModelAlias = args[i + 1].Trim();
+                    modified = true;
+                    i++;
+                }
+                else if ((args[i] is "--strategy") && i + 1 < args.Length)
+                {
+                    settings.ExecutionStrategy = args[i + 1].ToLowerInvariant() switch
+                    {
+                        "powersaving" => FoundryExecutionStrategy.PowerSaving,
+                        "highperformance" => FoundryExecutionStrategy.HighPerformance,
+                        "manual" => FoundryExecutionStrategy.Manual,
+                        _ => settings.ExecutionStrategy
+                    };
+                    modified = true;
+                    i++;
+                }
+                else if ((args[i] is "--device") && i + 1 < args.Length)
+                {
+                    settings.ManualDeviceType = args[i + 1].ToUpperInvariant() switch
+                    {
+                        "CPU" => FoundryDeviceType.CPU,
+                        "GPU" => FoundryDeviceType.GPU,
+                        "NPU" => FoundryDeviceType.NPU,
+                        "WEBGPU" => FoundryDeviceType.WebGPU,
+                        _ => settings.ManualDeviceType
+                    };
+                    modified = true;
+                    i++;
+                }
+            }
+
+            if (!modified)
+            {
+                Console.Error.WriteLine("Error: No changes. Use --backend, --model, --strategy, --device");
+                return 1;
+            }
+
+            SaveSettingsAsync(settings).GetAwaiter().GetResult();
+            IpcClient.Send("reload");
+            Console.WriteLine("Saved.");
+            return 0;
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"Error: {ex.Message}");
+            return 1;
+        }
+    }
+
+    private static int RunConfigService(ReadOnlySpan<string> args)
+    {
+        try
+        {
+            var settings = LoadSettingsAsync().GetAwaiter().GetResult();
+            var modified = false;
+
+            for (var i = 0; i < args.Length; i++)
+            {
+                if ((args[i] is "--port" or "-p") && i + 1 < args.Length)
+                {
+                    if (!int.TryParse(args[i + 1], out var port) || port < 1 || port > 65535)
+                    {
+                        Console.Error.WriteLine("Error: Invalid port. Use 1-65535.");
+                        return 1;
+                    }
+                    settings.Port = port;
+                    modified = true;
+                    i++;
+                }
+                else if ((args[i] is "--deeple") && i + 1 < args.Length)
+                {
+                    settings.EnableDeepLEndpoint = ParseBool(args[i + 1]);
+                    modified = true;
+                    i++;
+                }
+                else if ((args[i] is "--google") && i + 1 < args.Length)
+                {
+                    settings.EnableGoogleEndpoint = ParseBool(args[i + 1]);
+                    modified = true;
+                    i++;
+                }
+                else if ((args[i] is "--api-key") && i + 1 < args.Length)
+                {
+                    var v = args[i + 1].Trim();
+                    settings.ApiKey = string.IsNullOrEmpty(v) ? null : v;
+                    modified = true;
+                    i++;
+                }
+            }
+
+            if (!modified)
+            {
+                Console.Error.WriteLine("Error: No changes. Use --port N, --deeple, --google, --api-key");
+                return 1;
+            }
+
+            SaveSettingsAsync(settings).GetAwaiter().GetResult();
+            IpcClient.Send("reload");
+            Console.WriteLine($"Saved. Port: {settings.Port}");
+            return 0;
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"Error: {ex.Message}");
+            return 1;
+        }
+    }
+
+    private static bool ParseBool(ReadOnlySpan<char> v)
+    {
+        var s = v.Trim().ToString();
+        return s.Equals("true", StringComparison.OrdinalIgnoreCase) ||
+               s.Equals("1", StringComparison.Ordinal) ||
+               s.Equals("yes", StringComparison.OrdinalIgnoreCase);
     }
 }

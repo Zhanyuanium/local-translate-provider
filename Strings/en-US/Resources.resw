@@ -96,6 +96,9 @@
   <data name="AppName.Text" xml:space="preserve">
     <value>Local Translate Provider</value>
   </data>
+  <data name="DebugLogCard.Header" xml:space="preserve">
+    <value>Enable IPC debug log</value>
+  </data>
   <data name="AboutPlaceholder.Text" xml:space="preserve">
     <value>(To be filled)</value>
   </data>
