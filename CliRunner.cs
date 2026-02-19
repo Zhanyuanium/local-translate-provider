@@ -70,10 +70,20 @@ public static class CliRunner
             DebugLog.IsEnabled = true;
         args = args.Where(a => !a.Equals("--debug-log", StringComparison.OrdinalIgnoreCase)).ToArray();
 
-        _useFileStorage = !TryInitWindowsAppSdk();
+        var (sdkOk, sdkError) = TryInitWindowsAppSdk();
+        // 0x80070032 = ERROR_NOT_SUPPORTED，MSIX 打包应用无需 Bootstrap，SDK 已由系统加载，直接使用 SettingsService
+        var useSettingsService = sdkOk || (sdkError != null && sdkError.Contains("0x80070032", StringComparison.OrdinalIgnoreCase));
+        _useFileStorage = !useSettingsService;
+        if (useSettingsService && !sdkOk && sdkError != null && sdkError.Contains("0x80070032", StringComparison.OrdinalIgnoreCase))
+        {
+            if (DebugLog.IsEnabled)
+                DebugLog.Write("[CliRunner] Packaged app (0x80070032), using SettingsService without Bootstrap");
+        }
         if (_useFileStorage)
         {
             Console.Error.WriteLine("Note: Using file-based settings (Windows App SDK not initialized).");
+            if (!string.IsNullOrEmpty(sdkError))
+                Console.Error.WriteLine($"Bootstrap error: {sdkError}");
         }
 
         if (args.Length == 0)
@@ -104,15 +114,26 @@ public static class CliRunner
         return 1;
     }
 
-    private static bool TryInitWindowsAppSdk()
+    private static (bool ok, string? error) TryInitWindowsAppSdk()
     {
         try
         {
-            return Bootstrap.TryInitialize(0x00010008, out _);
+            var ok = Bootstrap.TryInitialize(0x00010008, out var hr);
+            if (ok)
+            {
+                if (DebugLog.IsEnabled)
+                    DebugLog.Write("[CliRunner] Bootstrap.TryInitialize succeeded");
+                return (true, null);
+            }
+            var err = $"HRESULT=0x{hr:X8}";
+            DebugLog.Write($"[CliRunner] Bootstrap.TryInitialize failed, {err}");
+            return (false, err);
         }
-        catch
+        catch (Exception ex)
         {
-            return false;
+            var err = $"{ex.GetType().Name}: {ex.Message}";
+            DebugLog.Write($"[CliRunner] Bootstrap exception: {err}");
+            return (false, err);
         }
     }
 

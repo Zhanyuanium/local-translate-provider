@@ -24,6 +24,8 @@ public static class Program
     public static void Main(string[] args)
     {
         InitDebugLog();
+        if (Array.Exists(args, a => a.Equals("--debug-log", StringComparison.OrdinalIgnoreCase)))
+            DebugLog.IsEnabled = true;
         var isTrayMode = args.Length > 0 && args[0].Equals("--tray", StringComparison.OrdinalIgnoreCase);
 
         using var mutex = new Mutex(false, SingleInstanceMutexName);
