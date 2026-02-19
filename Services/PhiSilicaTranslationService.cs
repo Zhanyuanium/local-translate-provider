@@ -45,23 +45,17 @@ public sealed class PhiSilicaTranslationService : ITranslationService
                 }
                 catch (Exception ex)
                 {
-                    return new TranslationServiceStatus(
-                        false,
-                        "Phi Silica 未就绪",
-                        ex.Message);
+                    return new TranslationServiceStatus(false, "StatusPhiSilicaNotReady", DetailRaw: ex.Message);
                 }
             }
 
             return state == AIFeatureReadyState.Ready
-                ? new TranslationServiceStatus(true, "已就绪")
-                : new TranslationServiceStatus(false, "需下载模型或申请 Limited Access 令牌");
+                ? new TranslationServiceStatus(true, "StatusReady")
+                : new TranslationServiceStatus(false, "StatusPhiSilicaNeedDownload");
         }
         catch (Exception ex)
         {
-            return new TranslationServiceStatus(
-                false,
-                "Phi Silica 不可用（中国区域不可用，或需 Copilot+ PC）",
-                ex.Message);
+            return new TranslationServiceStatus(false, "StatusPhiSilicaUnavailable", DetailRaw: ex.Message);
         }
     }
 }

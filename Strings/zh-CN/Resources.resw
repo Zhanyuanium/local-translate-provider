@@ -165,4 +165,34 @@
   <data name="TrayExit" xml:space="preserve">
     <value>退出</value>
   </data>
+  <data name="StatusReady" xml:space="preserve">
+    <value>已就绪</value>
+  </data>
+  <data name="StatusReadyCached" xml:space="preserve">
+    <value>已就绪（模型已缓存）</value>
+  </data>
+  <data name="StatusNeedDownload" xml:space="preserve">
+    <value>需首次下载模型</value>
+  </data>
+  <data name="StatusAutoDownloadHint" xml:space="preserve">
+    <value>首次翻译时将自动下载</value>
+  </data>
+  <data name="StatusModelNotFoundFormat" xml:space="preserve">
+    <value>模型 '{0}' 未找到</value>
+  </data>
+  <data name="StatusModelNotFoundHint" xml:space="preserve">
+    <value>请检查模型别名或运行 foundry model list 查看可用模型</value>
+  </data>
+  <data name="StatusFoundryUnavailable" xml:space="preserve">
+    <value>Foundry Local 不可用</value>
+  </data>
+  <data name="StatusPhiSilicaNotReady" xml:space="preserve">
+    <value>Phi Silica 未就绪</value>
+  </data>
+  <data name="StatusPhiSilicaNeedDownload" xml:space="preserve">
+    <value>需下载模型或申请 Limited Access 令牌</value>
+  </data>
+  <data name="StatusPhiSilicaUnavailable" xml:space="preserve">
+    <value>Phi Silica 不可用（中国区域不可用，或需 Copilot+ PC）</value>
+  </data>
 </root>

@@ -7,6 +7,7 @@ using Microsoft.Win32.SafeHandles;
 using local_translate_provider.Models;
 using local_translate_provider.Services;
 using Microsoft.Windows.ApplicationModel.DynamicDependency;
+using Windows.ApplicationModel.Resources;
 
 namespace local_translate_provider;
 
@@ -205,11 +206,19 @@ Options:
             var translationService = new TranslationService(settings);
             var status = translationService.GetStatusAsync().GetAwaiter().GetResult();
 
+            var res = ResourceLoader.GetForViewIndependentUse();
+            var msg = status.MessageFormatArgs != null && status.MessageFormatArgs.Length > 0
+                ? string.Format(res.GetString(status.MessageResourceKey), status.MessageFormatArgs)
+                : res.GetString(status.MessageResourceKey);
+            var detail = status.DetailResourceKey != null
+                ? res.GetString(status.DetailResourceKey)
+                : status.DetailRaw;
+
             Console.WriteLine($"Backend: {settings.TranslationBackend}");
             Console.WriteLine($"Ready: {status.IsReady}");
-            Console.WriteLine($"Message: {status.Message}");
-            if (!string.IsNullOrEmpty(status.Detail))
-                Console.WriteLine($"Detail: {status.Detail}");
+            Console.WriteLine($"Message: {msg}");
+            if (!string.IsNullOrEmpty(detail))
+                Console.WriteLine($"Detail: {detail}");
             return 0;
         }
         catch (Exception ex)

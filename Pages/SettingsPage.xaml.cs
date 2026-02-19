@@ -194,9 +194,15 @@ public sealed partial class SettingsPage : Page
         {
             var status = await App.TranslationService.GetStatusAsync();
             var prefix = ResLoader.GetString("StatusPrefix");
-            StatusText.Text = $"{prefix}{status.Message}";
-            if (!string.IsNullOrEmpty(status.Detail))
-                StatusText.Text += $"\n{status.Detail}";
+            var msg = status.MessageFormatArgs != null && status.MessageFormatArgs.Length > 0
+                ? string.Format(ResLoader.GetString(status.MessageResourceKey), status.MessageFormatArgs)
+                : ResLoader.GetString(status.MessageResourceKey);
+            StatusText.Text = $"{prefix}{msg}";
+            var detail = status.DetailResourceKey != null
+                ? ResLoader.GetString(status.DetailResourceKey)
+                : status.DetailRaw;
+            if (!string.IsNullOrEmpty(detail))
+                StatusText.Text += $"\n{detail}";
         }
         catch (Exception ex)
         {

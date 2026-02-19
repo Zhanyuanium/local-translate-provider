@@ -165,4 +165,34 @@
   <data name="TrayExit" xml:space="preserve">
     <value>Exit</value>
   </data>
+  <data name="StatusReady" xml:space="preserve">
+    <value>Ready</value>
+  </data>
+  <data name="StatusReadyCached" xml:space="preserve">
+    <value>Ready (model cached)</value>
+  </data>
+  <data name="StatusNeedDownload" xml:space="preserve">
+    <value>Model needs to be downloaded first</value>
+  </data>
+  <data name="StatusAutoDownloadHint" xml:space="preserve">
+    <value>Will auto-download on first translation</value>
+  </data>
+  <data name="StatusModelNotFoundFormat" xml:space="preserve">
+    <value>Model '{0}' not found</value>
+  </data>
+  <data name="StatusModelNotFoundHint" xml:space="preserve">
+    <value>Check model alias or run foundry model list to see available models</value>
+  </data>
+  <data name="StatusFoundryUnavailable" xml:space="preserve">
+    <value>Foundry Local unavailable</value>
+  </data>
+  <data name="StatusPhiSilicaNotReady" xml:space="preserve">
+    <value>Phi Silica not ready</value>
+  </data>
+  <data name="StatusPhiSilicaNeedDownload" xml:space="preserve">
+    <value>Download model or apply for Limited Access token</value>
+  </data>
+  <data name="StatusPhiSilicaUnavailable" xml:space="preserve">
+    <value>Phi Silica unavailable (not available in China region, or requires Copilot+ PC)</value>
+  </data>
 </root>

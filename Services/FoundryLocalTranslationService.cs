@@ -64,17 +64,19 @@ public sealed class FoundryLocalTranslationService : ITranslationService
             var model = await catalog.GetModelAsync(_settings.FoundryModelAlias).ConfigureAwait(false);
 
             if (model == null)
-                return new TranslationServiceStatus(false, $"模型 '{_settings.FoundryModelAlias}' 未找到", "请检查模型别名或运行 foundry model list 查看可用模型");
+                return new TranslationServiceStatus(false, "StatusModelNotFoundFormat", new object[] { _settings.FoundryModelAlias }, "StatusModelNotFoundHint");
 
             var cached = await model.IsCachedAsync().ConfigureAwait(false);
             return new TranslationServiceStatus(
                 true,
-                cached ? "已就绪（模型已缓存）" : "需首次下载模型",
-                cached ? null : "首次翻译时将自动下载");
+                cached ? "StatusReadyCached" : "StatusNeedDownload",
+                MessageFormatArgs: null,
+                DetailResourceKey: cached ? null : "StatusAutoDownloadHint",
+                DetailRaw: null);
         }
         catch (Exception ex)
         {
-            return new TranslationServiceStatus(false, "Foundry Local 不可用", ex.Message);
+            return new TranslationServiceStatus(false, "StatusFoundryUnavailable", DetailRaw: ex.Message);
         }
     }
 

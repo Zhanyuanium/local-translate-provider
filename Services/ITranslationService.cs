@@ -27,7 +27,17 @@ public interface ITranslationService
     Task<TranslationServiceStatus> GetStatusAsync(CancellationToken cancellationToken = default);
 }
 
+/// <summary>
+/// Status from translation service. Message and Detail use resource keys for localization.
+/// </summary>
+/// <param name="IsReady">Whether the service is ready to translate.</param>
+/// <param name="MessageResourceKey">Resource key for the main status message.</param>
+/// <param name="MessageFormatArgs">Optional format arguments for the message (e.g. model alias).</param>
+/// <param name="DetailResourceKey">Optional resource key for the detail line (localized hint).</param>
+/// <param name="DetailRaw">Optional raw detail (e.g. exception message), not localized.</param>
 public record TranslationServiceStatus(
     bool IsReady,
-    string Message,
-    string? Detail = null);
+    string MessageResourceKey,
+    object[]? MessageFormatArgs = null,
+    string? DetailResourceKey = null,
+    string? DetailRaw = null);

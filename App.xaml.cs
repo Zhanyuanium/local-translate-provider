@@ -5,6 +5,7 @@ using local_translate_provider.Services;
 using local_translate_provider.TrayIcon;
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
+using Windows.ApplicationModel.Resources;
 
 namespace local_translate_provider;
 
@@ -96,9 +97,14 @@ public partial class App : Application
         try
         {
             var s = await TranslationService.GetStatusAsync().ConfigureAwait(false);
-            var result = $"Backend: {Settings.TranslationBackend}\nReady: {s.IsReady}\nMessage: {s.Message}";
-            if (!string.IsNullOrEmpty(s.Detail))
-                result += $"\nDetail: {s.Detail}";
+            var res = ResourceLoader.GetForViewIndependentUse();
+            var msg = s.MessageFormatArgs != null && s.MessageFormatArgs.Length > 0
+                ? string.Format(res.GetString(s.MessageResourceKey), s.MessageFormatArgs)
+                : res.GetString(s.MessageResourceKey);
+            var detail = s.DetailResourceKey != null ? res.GetString(s.DetailResourceKey) : s.DetailRaw;
+            var result = $"Backend: {Settings.TranslationBackend}\nReady: {s.IsReady}\nMessage: {msg}";
+            if (!string.IsNullOrEmpty(detail))
+                result += $"\nDetail: {detail}";
             return result;
         }
         catch (Exception ex)
