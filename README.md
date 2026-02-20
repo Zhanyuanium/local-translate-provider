@@ -15,12 +15,15 @@
 ## 系统要求
 
 - Windows 10 17763 及以上
-- .NET 8
-- Foundry Local 需安装 [Foundry CLI](https://github.com/microsoft/AI-Foundry) 并下载模型
+- .NET 8 运行时，Windows App SDK 运行时
+- 使用 Phi Silica 需要 Copilot+PC，Windows 11 24H2 及以上，并且安装区域非中国大陆
+- 使用 Foundry Local 需安装 [Foundry CLI](https://github.com/microsoft/Foundry-Local) 并下载模型
 
 ## 构建与运行
 
 ### 构建
+
+通过 Visual Studio 2026 构建，或：
 
 ```powershell
 dotnet build -p:Platform=x64
@@ -30,9 +33,9 @@ dotnet build -p:Platform=x64
 
 **方式一：MSIX 打包（推荐）**
 
-在 Visual Studio 中选择 `TransLocal (Package)` 配置，生成并部署。安装后可通过开始菜单或 `TransLocal` 命令启动。
+在 Visual Studio 中生成并部署，安装后可通过开始菜单或 `TransLocal` 命令启动。
 
-**方式二：直接运行**
+**方式二：直接运行（可能有部分初始化问题）**
 
 ```powershell
 # 启动托盘（后台运行）
@@ -42,7 +45,7 @@ dotnet build -p:Platform=x64
 .\bin\x64\Debug\net8.0-windows10.0.26100.0\win-x64\TransLocal.exe --tray
 ```
 
-## 命令行用法
+## 命令行用法（`TrayIcon` 不区分大小写）
 
 ```
 TransLocal            启动托盘并退出
